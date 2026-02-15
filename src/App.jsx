@@ -410,17 +410,101 @@ const OpCoDetailView = ({ coId }) => {
 
 
 /* ══════════════════════════════════════════
+   TREE VIEWS per operating company
+   ══════════════════════════════════════════ */
+
+const DropdownArrow=({size=12})=><svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>;
+
+const TreeNode=({node,isRoot=false})=>{const isBiz=node.type==="business";const hasChildren=node.children&&node.children.length>0;return<div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>{!isRoot&&<div style={{width:2,height:20,background:"#dadce0"}}/>}{node.ownership&&<div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>{node.ownership.map((o,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:4,fontSize:11,fontWeight:600,color:o.type==="Direct"?"#1967d2":"#7b1fa2"}}><div style={{width:18,height:18,borderRadius:"50%",background:o.type==="Direct"?"#e8f0fe":"#f3e8fd",display:"flex",alignItems:"center",justifyContent:"center"}}><CheckIcon size={10}/></div><span>{o.pct}%</span><span style={{fontWeight:400,fontSize:10,opacity:0.7}}>{o.type}</span></div>)}</div>}<div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 16px",background:"white",border:isRoot?"2px solid #1967d2":"1px solid #dadce0",borderRadius:8,boxShadow:isRoot?"0 2px 8px rgba(25,103,210,0.1)":"0 1px 3px rgba(0,0,0,0.04)",minWidth:140,cursor:"pointer"}}><div style={{width:28,height:28,borderRadius:isBiz?6:"50%",background:isBiz?"#e8f0fe":"#e6f4ea",display:"flex",alignItems:"center",justifyContent:"center"}}>{isBiz?<BuildingIcon size={13} color="#1967d2"/>:<UserIcon size={13} color="#1e8e3e"/>}</div><div><div style={{fontSize:12.5,fontWeight:600,color:"#202124",whiteSpace:"nowrap"}}>{node.name}</div>{node.role&&<div style={{fontSize:10.5,color:"#80868b",marginTop:1}}>Role: {node.role}</div>}</div>{!isRoot&&node.isUBO&&<span style={{fontSize:8,fontWeight:700,padding:"1px 4px",borderRadius:2,background:"#1a1a2e",color:"white",marginLeft:4}}>UBO</span>}</div>{hasChildren&&<><div style={{width:2,height:20,background:"#dadce0"}}/><div style={{display:"flex",gap:24,position:"relative"}}>{node.children.map((child,idx)=><div key={idx} style={{display:"flex",flexDirection:"column",alignItems:"center",position:"relative"}}>{node.children.length>1&&<div style={{position:"absolute",top:-2,left:idx===0?"50%":0,right:idx===node.children.length-1?"50%":0,height:2,background:"#dadce0"}}/>}<TreeNode node={child}/></div>)}</div></>}</div>};
+
+const buildTreeForCo = (co) => {
+  return {
+    name: co.name, type: "business",
+    children: co.owners.map(o => {
+      const person = PEOPLE[o.person];
+      const effective = o.direct + o.indirect;
+      const ownershipArr = [];
+      if (o.direct > 0) ownershipArr.push({ pct: o.direct, type: "Direct" });
+      if (o.indirect > 0) ownershipArr.push({ pct: o.indirect, type: "Indirect" });
+      const node = {
+        name: person.name, type: person.type,
+        role: person.role, isUBO: effective >= UBO_THRESHOLD,
+        ownership: ownershipArr,
+        children: [],
+      };
+      // If it's the trust, show Peter Cancro beneath it
+      if (o.person === "cancro-family-trust") {
+        node.children = [{
+          name: "Peter Cancro", type: "individual", role: "Trustee / Beneficiary",
+          isUBO: true, ownership: [{ pct: 100, type: "Direct" }], children: [],
+        }];
+      }
+      return node;
+    }),
+  };
+};
+
+const buildHoldingTree = () => ({
+  name: "Garden State Holdings LLC", type: "business",
+  children: OPERATING_COS.map(co => ({
+    name: co.name.replace("GSH Subs ", "").replace(" LLC", ""), type: "business",
+    role: co.location, ownership: [{ pct: 100, type: "Direct" }], children: [],
+  })),
+});
+
+const OpCoTreeView = ({ coId }) => {
+  const co = OPERATING_COS.find(c => c.id === coId);
+  if (!co) return null;
+  const tree = buildTreeForCo(co);
+  return <div style={{ background: "white", borderRadius: 8, border: "1px solid #e0e0e0", overflow: "hidden" }}>
+    <div style={{ padding: "14px 16px", borderBottom: "1px solid #e8eaed" }}>
+      <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#202124" }}>Related Parties — {co.name}</h2>
+    </div>
+    <div style={{ padding: "32px 16px 40px", display: "flex", justifyContent: "center", overflowX: "auto", minHeight: 280 }}>
+      <TreeNode node={tree} isRoot />
+    </div>
+  </div>;
+};
+
+const HoldingTreeView = () => {
+  const tree = buildHoldingTree();
+  return <div style={{ background: "white", borderRadius: 8, border: "1px solid #e0e0e0", overflow: "hidden" }}>
+    <div style={{ padding: "14px 16px", borderBottom: "1px solid #e8eaed" }}>
+      <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#202124" }}>Related Parties — Garden State Holdings LLC</h2>
+    </div>
+    <div style={{ padding: "32px 16px 40px", display: "flex", justifyContent: "center", overflowX: "auto", minHeight: 280 }}>
+      <TreeNode node={tree} isRoot />
+    </div>
+  </div>;
+};
+
+
+/* ══════════════════════════════════════════
    MAIN LAYOUT
    ══════════════════════════════════════════ */
 
 export default function App() {
   const [activeNav, setActiveNav] = useState("case-details");
+  const [expandedCos, setExpandedCos] = useState({});
+
+  const toggleCo = (coId) => setExpandedCos(prev => ({ ...prev, [coId]: !prev[coId] }));
 
   const getContent = () => {
     if (activeNav === "case-details") return <CaseDetailsView />;
     if (activeNav === "ubo-rollup") return <UBORollupView />;
-    if (activeNav.startsWith("gsh-")) return <OpCoDetailView coId={activeNav} />;
     if (activeNav === "holding-biz") return <div style={{ background: "white", borderRadius: 8, border: "1px solid #e0e0e0", padding: "48px 24px", textAlign: "center" }}><div style={{ fontSize: 14, color: "#80868b" }}>Business Information — Garden State Holdings LLC</div></div>;
+    if (activeNav === "holding-rp") return <HoldingTreeView />;
+    if (activeNav === "holding-docs") return <div style={{ background: "white", borderRadius: 8, border: "1px solid #e0e0e0", padding: "48px 24px", textAlign: "center" }}><div style={{ fontSize: 14, color: "#80868b" }}>Documents — Garden State Holdings LLC</div></div>;
+    // Operating company sub-pages
+    const coMatch = activeNav.match(/^(gsh-\d+)-(biz|docs|rp)$/);
+    if (coMatch) {
+      const coId = coMatch[1]; const page = coMatch[2];
+      if (page === "biz") return <OpCoDetailView coId={coId} />;
+      if (page === "rp") return <OpCoTreeView coId={coId} />;
+      if (page === "docs") return <div style={{ background: "white", borderRadius: 8, border: "1px solid #e0e0e0", padding: "48px 24px", textAlign: "center" }}><div style={{ fontSize: 14, color: "#80868b" }}>Documents — {OPERATING_COS.find(c => c.id === coId)?.name}</div></div>;
+    }
+    // Legacy: bare coId clicks go to biz info
+    if (activeNav.startsWith("gsh-")) return <OpCoDetailView coId={activeNav} />;
     return <div style={{ background: "white", borderRadius: 8, border: "1px solid #e0e0e0", padding: "48px 24px", textAlign: "center" }}><div style={{ fontSize: 14, color: "#80868b" }}>Select a section</div></div>;
   };
 
@@ -452,29 +536,55 @@ export default function App() {
     {/* Body */}
     <div style={{ display: "flex", padding: "16px 24px", gap: 16, alignItems: "flex-start" }}>
       {/* Left Nav */}
-      <div style={{ width: 240, flexShrink: 0, background: "white", borderRadius: 8, border: "1px solid #e0e0e0", overflow: "hidden", maxHeight: "calc(100vh - 140px)", overflowY: "auto" }}>
+      <div style={{ width: 250, flexShrink: 0, background: "white", borderRadius: 8, border: "1px solid #e0e0e0", overflow: "hidden", maxHeight: "calc(100vh - 140px)", overflowY: "auto" }}>
         <div style={{ padding: "10px 0 4px" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#5f6368", textTransform: "uppercase", letterSpacing: 0.5, padding: "0 16px 6px" }}>Overview</div>
           <NavItem icon={<DocIcon />} label="Case Details" active={activeNav === "case-details"} onClick={() => setActiveNav("case-details")} />
           <NavItem icon={<RelatedPartiesIcon color={activeNav === "ubo-rollup" ? "#1967d2" : "#5f6368"} />} label="UBO Roll-up" active={activeNav === "ubo-rollup"} onClick={() => setActiveNav("ubo-rollup")} />
         </div>
         <div style={{ height: 1, background: "#e8eaed", margin: "4px 12px" }} />
+
+        {/* Holding Company */}
         <div style={{ padding: "8px 0 4px" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#5f6368", textTransform: "uppercase", letterSpacing: 0.5, padding: "0 16px 6px" }}>Holding Company</div>
-          <NavItem icon={<BusinessInfoIcon complete />} label="Garden State Holdings" indent={4} active={activeNav === "holding-biz"} onClick={() => setActiveNav("holding-biz")} />
+          <NavItem icon={<BusinessInfoIcon complete />} label="Business Information" indent={4} active={activeNav === "holding-biz"} onClick={() => setActiveNav("holding-biz")} />
+          <NavItem icon={<DocIcon />} label="Documents" indent={4} active={activeNav === "holding-docs"} onClick={() => setActiveNav("holding-docs")} />
+          <NavItem icon={<RelatedPartiesIcon color={activeNav === "holding-rp" ? "#1967d2" : "#5f6368"} />} label="Related Parties" indent={4} active={activeNav === "holding-rp"} onClick={() => setActiveNav("holding-rp")} />
         </div>
         <div style={{ height: 1, background: "#e8eaed", margin: "4px 12px" }} />
+
+        {/* Operating Companies */}
         <div style={{ padding: "8px 0 4px" }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#5f6368", textTransform: "uppercase", letterSpacing: 0.5, padding: "0 16px 6px" }}>Operating Companies ({OPERATING_COS.length})</div>
-          {OPERATING_COS.map(co => <NavItem
-            key={co.id}
-            icon={<StatusDot status={co.status} />}
-            label={co.name.replace("GSH Subs ", "").replace(" LLC", "")}
-            active={activeNav === co.id}
-            indent={4}
-            onClick={() => setActiveNav(co.id)}
-            count={co.owners.filter(o => (o.direct + o.indirect) >= UBO_THRESHOLD).length + " UBO"}
-          />)}
+          {OPERATING_COS.map(co => {
+            const isExpanded = expandedCos[co.id];
+            const isActive = activeNav.startsWith(co.id);
+            const shortName = co.name.replace("GSH Subs ", "").replace(" LLC", "");
+            const uboCount = co.owners.filter(o => (o.direct + o.indirect) >= UBO_THRESHOLD).length;
+            return <div key={co.id}>
+              {/* Collapsible header */}
+              <div onClick={() => { toggleCo(co.id); setActiveNav(co.id + "-biz"); }} style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "7px 12px 7px 20px", fontSize: 13, cursor: "pointer",
+                color: isActive ? "#1967d2" : "#3c4043",
+                fontWeight: isActive ? 600 : 400,
+                background: isActive && !isExpanded ? "#e8f0fe" : "transparent",
+                borderLeft: isActive ? "3px solid #1967d2" : "3px solid transparent",
+                transition: "background 0.12s",
+              }}>
+                <span style={{ display: "flex", color: "#9aa0a6", flexShrink: 0 }}>{isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>
+                <StatusDot status={co.status} />
+                <span style={{ flex: 1, fontSize: 12.5 }}>{shortName}</span>
+                <span style={{ fontSize: 9.5, fontWeight: 600, color: "#9aa0a6", background: "#f1f3f4", padding: "1px 5px", borderRadius: 99 }}>{uboCount}</span>
+              </div>
+              {/* Sub-items */}
+              {isExpanded && <div style={{ borderLeft: "3px solid transparent" }}>
+                <NavItem icon={<BusinessInfoIcon complete={co.status === "complete"} />} label="Business Information" indent={20} active={activeNav === co.id + "-biz"} onClick={() => setActiveNav(co.id + "-biz")} />
+                <NavItem icon={<DocIcon />} label="Documents" indent={20} active={activeNav === co.id + "-docs"} onClick={() => setActiveNav(co.id + "-docs")} />
+                <NavItem icon={<RelatedPartiesIcon color={activeNav === co.id + "-rp" ? "#1967d2" : "#5f6368"} />} label="Related Parties" indent={20} active={activeNav === co.id + "-rp"} onClick={() => setActiveNav(co.id + "-rp")} />
+              </div>}
+            </div>;
+          })}
         </div>
       </div>
 
