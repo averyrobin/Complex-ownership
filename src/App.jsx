@@ -480,6 +480,155 @@ const HoldingTreeView = () => {
 
 
 /* ══════════════════════════════════════════
+   INDIVIDUAL PERSON DETAIL VIEW
+   ══════════════════════════════════════════ */
+
+const PERSON_DETAILS = {
+  "peter-cancro": { firstName: "Peter", lastName: "Cancro", dob: "Aug 12, 1957", ssn: "***-**-4891", citizenship: "United States", address: "14 Navesink Ave, Rumson, NJ 07760", phone: "(732) 555-0142", email: "pcancro@gshsubs.com",
+    kyc: { identity: "complete", sourceOfWealth: "complete", pepSanctions: "complete", addressVerified: "complete", alloyStatus: "Approved (0.97)" } },
+  "maria-cancro": { firstName: "Maria", lastName: "Cancro", dob: "Mar 22, 1960", ssn: "***-**-3277", citizenship: "United States", address: "14 Navesink Ave, Rumson, NJ 07760", phone: "(732) 555-0143", email: "mcancro@gshsubs.com",
+    kyc: { identity: "complete", sourceOfWealth: "complete", pepSanctions: "complete", addressVerified: "complete", alloyStatus: "Approved (0.95)" } },
+  "tom-burke": { firstName: "Tom", lastName: "Burke", dob: "Jan 5, 1982", ssn: "***-**-6614", citizenship: "United States", address: "88 Broad St, Red Bank, NJ 07701", phone: "(732) 555-0201", email: "tburke@gshsubs.com",
+    kyc: { identity: "complete", sourceOfWealth: "in_progress", pepSanctions: "complete", addressVerified: "complete", alloyStatus: "Approved (0.99)" } },
+  "lisa-chen": { firstName: "Lisa", lastName: "Chen", dob: "Sep 14, 1985", ssn: "***-**-8823", citizenship: "United States", address: "201 Nassau St, Princeton, NJ 08540", phone: "(609) 555-0118", email: "lchen@gshsubs.com",
+    kyc: { identity: "complete", sourceOfWealth: "not_started", pepSanctions: "complete", addressVerified: "complete", alloyStatus: "Approved (0.98)" } },
+  "david-ross": { firstName: "David", lastName: "Ross", dob: "Nov 30, 1979", ssn: "***-**-5502", citizenship: "United States", address: "42 Georges Rd, New Brunswick, NJ 08901", phone: "(732) 555-0334", email: "dross@gshsubs.com",
+    kyc: { identity: "complete", sourceOfWealth: "in_progress", pepSanctions: "needs_review", addressVerified: "complete", alloyStatus: "Manual Review" } },
+  "sarah-kim": { firstName: "Sarah", lastName: "Kim", dob: "Jun 8, 1988", ssn: "***-**-1190", citizenship: "United States", address: "7 South St, Morristown, NJ 07960", phone: "(973) 555-0227", email: "skim@gshsubs.com",
+    kyc: { identity: "complete", sourceOfWealth: "complete", pepSanctions: "complete", addressVerified: "complete", alloyStatus: "Approved (0.96)" } },
+  "raj-patel": { firstName: "Raj", lastName: "Patel", dob: "Feb 17, 1991", ssn: "***-**-7741", citizenship: "United States", address: "330 Main St, Chatham, NJ 07928", phone: "(973) 555-0445", email: "rpatel@gshsubs.com",
+    kyc: { identity: "complete", sourceOfWealth: "not_started", pepSanctions: "not_started", addressVerified: "complete", alloyStatus: "Not Run" } },
+  "jen-martinez": { firstName: "Jennifer", lastName: "Martinez", dob: "Dec 3, 1984", ssn: "***-**-2209", citizenship: "United States", address: "510 Washington St, Hoboken, NJ 07030", phone: "(201) 555-0163", email: "jmartinez@gshsubs.com",
+    kyc: { identity: "in_progress", sourceOfWealth: "not_started", pepSanctions: "not_started", addressVerified: "not_started", alloyStatus: "Not Run" } },
+  "mike-walsh": { firstName: "Mike", lastName: "Walsh", dob: "Jul 25, 1976", ssn: "***-**-9934", citizenship: "United States", address: "12 Cherry Ln, Cherry Hill, NJ 08002", phone: "(856) 555-0088", email: "mwalsh@gshsubs.com",
+    kyc: { identity: "not_started", sourceOfWealth: "not_started", pepSanctions: "not_started", addressVerified: "not_started", alloyStatus: "Not Run" } },
+};
+
+const kycCheckIcon = (status) => {
+  if (status === "complete") return <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#e6f4ea", display: "flex", alignItems: "center", justifyContent: "center", color: "#1e8e3e" }}><CheckIcon size={10} /></div>;
+  if (status === "in_progress") return <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#e8f0fe", display: "flex", alignItems: "center", justifyContent: "center", color: "#1967d2" }}><ClockIcon size={10} /></div>;
+  if (status === "needs_review") return <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#fef7e0", display: "flex", alignItems: "center", justifyContent: "center", color: "#b06000" }}><AlertIcon size={10} /></div>;
+  return <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#f1f3f4", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ width: 6, height: 6, borderRadius: "50%", background: "#dadce0", display: "block" }} /></div>;
+};
+
+const kycStatusLabel = (status) => ({ complete: "Complete", in_progress: "In Progress", needs_review: "Needs Review", not_started: "Not Started" }[status] || "—");
+
+const personKycOverall = (kyc) => {
+  const vals = Object.values(kyc).filter(v => typeof v === "string" && ["complete", "in_progress", "needs_review", "not_started"].includes(v));
+  if (vals.every(v => v === "complete")) return "complete";
+  if (vals.some(v => v === "needs_review")) return "needs_review";
+  if (vals.some(v => v === "in_progress")) return "in_progress";
+  return "not_started";
+};
+
+const PersonDetailView = ({ personKey }) => {
+  const person = PEOPLE[personKey];
+  const details = PERSON_DETAILS[personKey];
+  if (!person || !details) return null;
+
+  // Find which entities this person appears in
+  const appearances = [];
+  OPERATING_COS.forEach(co => {
+    co.owners.forEach(o => {
+      if (o.person === personKey) {
+        appearances.push({ coName: co.name, coId: co.id, direct: o.direct, indirect: o.indirect, effective: o.direct + o.indirect, isUBO: (o.direct + o.indirect) >= UBO_THRESHOLD });
+      }
+    });
+  });
+
+  return <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    {/* Personal Information */}
+    <div style={{ background: "white", borderRadius: 8, border: "1px solid #e0e0e0", overflow: "hidden" }}>
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid #e8eaed" }}>
+        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#202124" }}>Personal Details</h2>
+      </div>
+      <div style={{ padding: "16px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px 24px" }}>
+          {[
+            { label: "First Name", value: details.firstName },
+            { label: "Last Name", value: details.lastName },
+            { label: "Date of Birth", value: details.dob },
+            { label: "SSN", value: details.ssn },
+            { label: "Citizenship", value: details.citizenship },
+            { label: "Phone", value: details.phone },
+            { label: "Email", value: details.email },
+            { label: "Address", value: details.address },
+            { label: "Role", value: person.role },
+          ].map((f, i) => <div key={i}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#80868b", marginBottom: 3 }}>{f.label}</div>
+            <div style={{ fontSize: 13.5, color: "#202124", fontWeight: 500 }}>{f.value}</div>
+          </div>)}
+        </div>
+      </div>
+    </div>
+
+    {/* KYC / Verification Status */}
+    <div style={{ background: "white", borderRadius: 8, border: "1px solid #e0e0e0", overflow: "hidden" }}>
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid #e8eaed", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#202124" }}>KYC / Verification Status</h2>
+        <span style={{ fontSize: 12, fontWeight: 600, padding: "3px 10px", borderRadius: 99,
+          background: details.kyc.alloyStatus.startsWith("Approved") ? "#e6f4ea" : details.kyc.alloyStatus === "Manual Review" ? "#fef7e0" : "#f1f3f4",
+          color: details.kyc.alloyStatus.startsWith("Approved") ? "#1e8e3e" : details.kyc.alloyStatus === "Manual Review" ? "#e65100" : "#5f6368",
+        }}>Alloy: {details.kyc.alloyStatus}</span>
+      </div>
+      <div style={{ padding: "16px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px 24px" }}>
+          {[
+            { label: "Identity Verification", key: "identity" },
+            { label: "Source of Wealth", key: "sourceOfWealth" },
+            { label: "PEP / Sanctions Screening", key: "pepSanctions" },
+            { label: "Address Verified", key: "addressVerified" },
+          ].map((check, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, background: "#f8f9fa" }}>
+            {kycCheckIcon(details.kyc[check.key])}
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: "#202124" }}>{check.label}</div>
+              <div style={{ fontSize: 11, color: "#80868b" }}>{kycStatusLabel(details.kyc[check.key])}</div>
+            </div>
+          </div>)}
+        </div>
+      </div>
+    </div>
+
+    {/* Entity Appearances */}
+    <div style={{ background: "white", borderRadius: 8, border: "1px solid #e0e0e0", overflow: "hidden" }}>
+      <div style={{ padding: "14px 16px", borderBottom: "1px solid #e8eaed", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#202124" }}>Entity Relationships</h2>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#5f6368", background: "#f1f3f4", padding: "2px 7px", borderRadius: 99 }}>{appearances.length}</span>
+        </div>
+        <div style={{ fontSize: 12, color: "#80868b" }}>
+          UBO in <span style={{ fontWeight: 700, color: "#1967d2" }}>{appearances.filter(a => a.isUBO).length}</span> of {appearances.length} entities
+        </div>
+      </div>
+      {appearances.map((a, idx) => <div key={idx} style={{
+        display: "grid", gridTemplateColumns: "1.4fr 1fr 0.5fr",
+        alignItems: "center", padding: "12px 16px",
+        borderBottom: idx < appearances.length - 1 ? "1px solid #f0f1f3" : "none",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <EntityBubble type="business" size={24} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#202124" }}>{a.coName}</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ flex: 1, height: 14, background: "#f1f3f4", borderRadius: 3, position: "relative" }}>
+            <div style={{ position: "absolute", left: `${UBO_THRESHOLD}%`, top: -1, bottom: -1, width: 1, background: "#ea433544" }} />
+            {a.direct > 0 && <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${a.direct}%`, background: "#1967d2", borderRadius: a.indirect > 0 ? "3px 0 0 3px" : 3 }} />}
+            {a.indirect > 0 && <div style={{ position: "absolute", left: `${a.direct}%`, top: 0, bottom: 0, width: `${a.indirect}%`, background: "#7b1fa2", borderRadius: a.direct > 0 ? "0 3px 3px 0" : 3 }} />}
+          </div>
+          <span style={{ fontSize: 12, fontWeight: 700, color: a.isUBO ? "#1967d2" : "#9aa0a6", minWidth: 36, textAlign: "right" }}>{a.effective}%</span>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          {a.isUBO && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 3, background: "#1a1a2e", color: "white", letterSpacing: 0.5 }}>UBO</span>}
+        </div>
+      </div>)}
+    </div>
+  </div>;
+};
+
+
+/* ══════════════════════════════════════════
    MAIN LAYOUT
    ══════════════════════════════════════════ */
 
@@ -502,6 +651,13 @@ export default function App() {
       if (page === "biz") return <OpCoDetailView coId={coId} />;
       if (page === "rp") return <OpCoTreeView coId={coId} />;
       if (page === "docs") return <div style={{ background: "white", borderRadius: 8, border: "1px solid #e0e0e0", padding: "48px 24px", textAlign: "center" }}><div style={{ fontSize: 14, color: "#80868b" }}>Documents — {OPERATING_COS.find(c => c.id === coId)?.name}</div></div>;
+    }
+    // Person sub-pages
+    const personMatch = activeNav.match(/^person-(.+)-(details|docs)$/);
+    if (personMatch) {
+      const pKey = personMatch[1]; const page = personMatch[2];
+      if (page === "details") return <PersonDetailView personKey={pKey} />;
+      if (page === "docs") return <div style={{ background: "white", borderRadius: 8, border: "1px solid #e0e0e0", padding: "48px 24px", textAlign: "center" }}><div style={{ fontSize: 14, color: "#80868b" }}>Documents — {PEOPLE[pKey]?.name}</div></div>;
     }
     // Legacy: bare coId clicks go to biz info
     if (activeNav.startsWith("gsh-")) return <OpCoDetailView coId={activeNav} />;
@@ -582,6 +738,42 @@ export default function App() {
                 <NavItem icon={<BusinessInfoIcon complete={co.status === "complete"} />} label="Business Information" indent={20} active={activeNav === co.id + "-biz"} onClick={() => setActiveNav(co.id + "-biz")} />
                 <NavItem icon={<DocIcon />} label="Documents" indent={20} active={activeNav === co.id + "-docs"} onClick={() => setActiveNav(co.id + "-docs")} />
                 <NavItem icon={<RelatedPartiesIcon color={activeNav === co.id + "-rp" ? "#1967d2" : "#5f6368"} />} label="Related Parties" indent={20} active={activeNav === co.id + "-rp"} onClick={() => setActiveNav(co.id + "-rp")} />
+              </div>}
+            </div>;
+          })}
+        </div>
+        <div style={{ height: 1, background: "#e8eaed", margin: "4px 12px" }} />
+
+        {/* Individuals */}
+        <div style={{ padding: "8px 0 8px" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#5f6368", textTransform: "uppercase", letterSpacing: 0.5, padding: "0 16px 6px" }}>
+            Individuals ({Object.keys(PERSON_DETAILS).length})
+          </div>
+          {Object.entries(PERSON_DETAILS).map(([pKey, pDetail]) => {
+            const person = PEOPLE[pKey];
+            if (!person || person.type !== "individual") return null;
+            const isExpanded = expandedCos["p-" + pKey];
+            const isActive = activeNav.startsWith("person-" + pKey);
+            const overall = personKycOverall(pDetail.kyc);
+            const entityCount = OPERATING_COS.filter(co => co.owners.some(o => o.person === pKey)).length;
+            return <div key={pKey}>
+              <div onClick={() => { toggleCo("p-" + pKey); setActiveNav("person-" + pKey + "-details"); }} style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "7px 12px 7px 20px", fontSize: 13, cursor: "pointer",
+                color: isActive ? "#1967d2" : "#3c4043",
+                fontWeight: isActive ? 600 : 400,
+                background: isActive && !isExpanded ? "#e8f0fe" : "transparent",
+                borderLeft: isActive ? "3px solid #1967d2" : "3px solid transparent",
+                transition: "background 0.12s",
+              }}>
+                <span style={{ display: "flex", color: "#9aa0a6", flexShrink: 0 }}>{isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</span>
+                <StatusDot status={overall} />
+                <span style={{ flex: 1, fontSize: 12.5 }}>{person.name}</span>
+                <span style={{ fontSize: 9.5, fontWeight: 600, color: "#9aa0a6", background: "#f1f3f4", padding: "1px 5px", borderRadius: 99 }}>{entityCount}</span>
+              </div>
+              {isExpanded && <div style={{ borderLeft: "3px solid transparent" }}>
+                <NavItem icon={<PersonalIcon />} label="Personal Details" indent={20} active={activeNav === "person-" + pKey + "-details"} onClick={() => setActiveNav("person-" + pKey + "-details")} />
+                <NavItem icon={<DocIcon />} label="Documents" indent={20} active={activeNav === "person-" + pKey + "-docs"} onClick={() => setActiveNav("person-" + pKey + "-docs")} />
               </div>}
             </div>;
           })}
